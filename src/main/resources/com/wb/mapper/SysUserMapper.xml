@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.wb.mapper.SysUserMapper">
+
+    <select id="getByUsername" resultType="com.wb.entity.SysUser">
+        SELECT * FROM sys_user WHERE username = #{username}
+    </select>
+
+    <select id="getById" resultType="com.wb.entity.SysUser">
+        SELECT * FROM sys_user WHERE id = #{id}
+    </select>
+
+    <insert id="insertUser" parameterType="com.wb.entity.SysUser" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO sys_user (username, password, name, role)
+        VALUES (#{username}, #{password}, #{name}, #{role})
+    </insert>
+
+    <update id="updateProfile" parameterType="com.wb.entity.SysUser">
+        UPDATE sys_user
+        SET username = #{username},
+            password = #{password},
+            name = #{name}
+        WHERE id = #{id}
+    </update>
+
+    <select id="getAdminCount" resultType="int">
+        SELECT COUNT(*) FROM sys_user WHERE role = 'ADMIN'
+    </select>
+
+</mapper>

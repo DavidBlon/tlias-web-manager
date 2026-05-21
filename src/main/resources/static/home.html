@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>首页 - Tlias</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.15.4/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/css/adminlte.min.css">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <style>
+@media (max-width: 767.98px) {
+    .content-header h1 { font-size: 1.2rem; }
+    .breadcrumb { display: none; }
+    .small-box .inner h3 { font-size: 1.5rem; }
+    .small-box .inner p { font-size: .85rem; }
+}
+@media (max-width: 575.98px) {
+    .small-box { margin-bottom: .8rem; }
+}
+.notify-dropdown { width: 320px; max-height: 360px; overflow-y: auto; }
+.notify-item { cursor: pointer; font-size: .88rem; border-bottom: 1px solid #f0f0f0; }
+.notify-item:last-child { border-bottom: 0; }
+.notify-item.unread { background: #f0f7ff; font-weight: 500; }
+.notify-item .notify-time { font-size: .75rem; color: #999; }
+.notify-badge { position: absolute; top: 2px; right: 4px; }
+
+body.employee-app .content-header { display: none; }
+body.employee-app .main-footer { display: none; }
+body.employee-app .content-wrapper { margin-left: 0 !important; }
+body.employee-app .main-sidebar { display: none; }
+body.employee-app .brand-link { display: none; }
+body.employee-app .content { padding: 10px; }
+
+.bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; z-index: 1030;
+    background: #fff; border-top: 1px solid #eee; display: flex;
+    padding: 6px 0 env(safe-area-inset-bottom, 8px) 0; }
+.bottom-nav a { flex: 1; text-align: center; color: #999; text-decoration: none;
+    padding: 6px 0; font-size: .75rem; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.bottom-nav a i { font-size: 1.3rem; }
+.bottom-nav a.active { color: #007bff; font-weight: 600; }
+.bottom-nav-spacer { height: 70px; }
+    </style>
+</head>
+<body class="hold-transition sidebar-mini">
+<div id="app">
+<div class="wrapper">
+    <nav class="main-header navbar navbar-expand navbar-white navbar-light">
+        <ul class="navbar-nav">
+            <li class="nav-item">
+                <a class="nav-link" data-widget="pushmenu" href="#"><i class="fas fa-bars"></i></a>
+            </li>
+        </ul>
+        <ul class="navbar-nav ml-auto">
+            <li class="nav-item dropdown">
+                <a class="nav-link" data-toggle="dropdown" href="#" style="position:relative">
+                    <i class="far fa-bell"></i>
+                    <span v-if="unreadCount" class="badge badge-warning notify-badge">{{ unreadCount }}</span>
+                </a>
+                <div class="dropdown-menu dropdown-menu-right notify-dropdown p-0">
+                    <div class="px-3 py-2 d-flex justify-content-between align-items-center border-bottom" style="background:#fafafa">
+                        <strong style="font-size:.92rem">通知</strong>
+                        <button v-if="notifications.length" class="btn btn-xs btn-outline-secondary" @click="markAllRead" style="font-size:.75rem">全部已读</button>
+                    </div>
+                    <div v-if="loginUser?.role === 'ADMIN'" class="px-3 py-2 border-bottom">
+                        <div class="input-group input-group-sm">
+                            <input type="text" class="form-control" v-model="newNotifTitle"
+                                   placeholder="发布通知..." @keyup.enter="publishNotif()">
+                            <div class="input-group-append">
+                                <button class="btn btn-primary" @click="publishNotif()">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div v-if="notifications.length === 0" class="text-center text-muted py-4" style="font-size:.85rem">暂无通知</div>
+                    <div v-for="n in displayedNotifications" :key="n.id"
+                         class="notify-item px-3 py-2"
+                         :class="{ 'unread': !n.read }"
+                         @click="markRead(n)">
+                        <div>{{ n.title }}</div>
+                        <div class="notify-time">{{ n.time }}</div>
+                    </div>
+                    <div v-if="notifications.length > 10" class="text-center py-2 border-top">
+                        <small class="text-muted">显示最近 10 条，共 {{ notifications.length }} 条</small>
+                    </div>
+                </div>
+            </li>
+            <li class="nav-item dropdown ml-2">
+                <a class="nav-link" data-toggle="dropdown" href="#" style="cursor:pointer">
+                    <i class="fas fa-user-circle"></i> {{ loginUser?.name || '用户' }}
+                </a>
+                <div class="dropdown-menu dropdown-menu-right">
+                    <div class="dropdown-item-text text-muted" style="font-size:.85rem">
+                        <i class="fas fa-tag mr-1"></i>
+                        <span :class="'badge ' + (loginUser?.role === 'ADMIN' ? 'badge-danger' : 'badge-info')">
+                            {{ loginUser?.role === 'ADMIN' ? '管理员' : '员工' }}
+                        </span>
+                    </div>
+                    <div class="dropdown-divider"></div>
+                    <a class="dropdown-item" href="settings.html">
+                        <i class="fas fa-user-edit mr-1"></i> 修改资料
+                    </a>
+                    <a class="dropdown-item" href="#" @click.prevent="logout">
+                        <i class="fas fa-sign-out-alt mr-1"></i> 退出登录
+                    </a>
+                </div>
+            </li>
+        </ul>
+    </nav>
+
+    <aside class="main-sidebar sidebar-dark-primary elevation-4">
+        <a href="#" class="brand-link">
+            <span class="brand-text font-weight-light" style="margin-left:16px">Tlias</span>
+        </a>
+        <div class="sidebar">
+            <nav class="mt-2">
+                <ul class="nav nav-pills nav-sidebar flex-column" role="menu">
+                    <li class="nav-header">系统管理</li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="home.html">
+                            <i class="nav-icon fas fa-home"></i>
+                            <p>首页</p>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="index.html">
+                            <i class="nav-icon fas fa-sitemap"></i>
+                            <p>部门管理</p>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="employee.html">
+                            <i class="nav-icon fas fa-users"></i>
+                            <p>员工管理</p>
+                        </a>
+                    </li>
+                    <li class="nav-header">其他</li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="settings.html">
+                            <i class="nav-icon fas fa-cog"></i>
+                            <p>系统设置</p>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </aside>
+
+    <div class="content-wrapper">
+        <section class="content-header">
+            <div class="container-fluid">
+                <div class="row mb-2">
+                    <div class="col-sm-6">
+                        <h1>控制面板</h1>
+                    </div>
+                    <div class="col-sm-6">
+                        <ol class="breadcrumb float-sm-right">
+                            <li class="breadcrumb-item"><a href="home.html">首页</a></li>
+                            <li class="breadcrumb-item active">控制面板</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="content">
+            <div class="container-fluid">
+                <!-- 统计卡片 -->
+                <div class="row">
+                    <div class="col-lg-3 col-6">
+                        <div class="small-box bg-info">
+                            <div class="inner">
+                                <h3>{{ deptCount }}</h3>
+                                <p>部门总数</p>
+                            </div>
+                            <div class="icon"><i class="fas fa-sitemap"></i></div>
+                            <a href="index.html" class="small-box-footer">查看详情 <i class="fas fa-arrow-circle-right"></i></a>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 col-6">
+                        <div class="small-box bg-success">
+                            <div class="inner">
+                                <h3>{{ empCount }}</h3>
+                                <p>员工总数</p>
+                            </div>
+                            <div class="icon"><i class="fas fa-users"></i></div>
+                            <a href="employee.html" class="small-box-footer">查看详情 <i class="fas fa-arrow-circle-right"></i></a>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 col-6">
+                        <div class="small-box bg-success">
+                            <div class="inner">
+                                <h3>{{ activeCount }}</h3>
+                                <p>活跃员工</p>
+                            </div>
+                            <div class="icon"><i class="fas fa-user-check"></i></div>
+                            <a href="employee.html" class="small-box-footer">查看详情 <i class="fas fa-arrow-circle-right"></i></a>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 col-6">
+                        <div class="small-box bg-danger">
+                            <div class="inner">
+                                <h3>{{ adminCount }}</h3>
+                                <p>管理员</p>
+                            </div>
+                            <div class="icon"><i class="fas fa-user-shield"></i></div>
+                            <a href="settings.html" class="small-box-footer">查看详情 <i class="fas fa-arrow-circle-right"></i></a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <!-- 部门列表 -->
+                    <div class="col-lg-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title"><i class="fas fa-sitemap mr-1"></i> 部门列表</h3>
+                                <div class="card-tools">
+                                    <a href="index.html" class="btn btn-xs btn-outline-primary">全部</a>
+                                </div>
+                            </div>
+                            <div class="card-body table-responsive p-0">
+                                <table class="table table-hover text-nowrap mb-0">
+                                    <thead>
+                                        <tr><th>ID</th><th>部门名称</th><th>更新时间</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr v-for="d in recentDepts" :key="d.id">
+                                            <td><span class="badge badge-info">{{ d.id }}</span></td>
+                                            <td>{{ d.name }}</td>
+                                            <td style="font-size:.85rem;color:#888">{{ d.updateTime }}</td>
+                                        </tr>
+                                        <tr v-if="depts.length === 0">
+                                            <td colspan="3" class="text-center text-muted">暂无数据</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 员工列表 -->
+                    <div class="col-lg-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title"><i class="fas fa-users mr-1"></i> 最近员工</h3>
+                                <div class="card-tools">
+                                    <a href="employee.html" class="btn btn-xs btn-outline-success">全部</a>
+                                </div>
+                            </div>
+                            <div class="card-body table-responsive p-0">
+                                <table class="table table-hover text-nowrap mb-0">
+                                    <thead>
+                                        <tr><th>ID</th><th>用户名</th><th>姓名</th><th>年龄</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr v-for="e in recentEmps" :key="e.id">
+                                            <td><span class="badge badge-success">{{ e.id }}</span></td>
+                                            <td>{{ e.username }}</td>
+                                            <td>{{ e.name }}</td>
+                                            <td>{{ e.age }}</td>
+                                        </tr>
+                                        <tr v-if="emps.length === 0">
+                                            <td colspan="4" class="text-center text-muted">暂无数据</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 系统通知时间线 -->
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title"><i class="fas fa-history mr-1"></i> 最近活动</h3>
+                            </div>
+                            <div class="card-body p-0">
+                                <div v-if="notifications.length === 0" class="text-center text-muted py-4">暂无活动记录</div>
+                                <div v-else class="p-3" style="font-size:.88rem">
+                                    <div v-for="n in recentNotifications" :key="n.id" class="d-flex align-items-center mb-2 pb-2" style="border-bottom:1px solid #f4f4f4">
+                                        <i class="fas fa-circle mr-2" :style="{ color: n.read ? '#ddd' : '#28a745', fontSize: '8px' }"></i>
+                                        <span>{{ n.title }}</span>
+                                        <span class="ml-auto text-muted" style="font-size:.75rem">{{ n.time }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <footer class="main-footer">
+        <strong>Tlias &copy; 2024</strong> 部门管理系统
+    </footer>
+
+    <nav class="bottom-nav" v-if="loginUser?.role === 'EMPLOYEE'">
+        <a href="home.html" class="active"><i class="fas fa-home"></i><span>首页</span></a>
+        <a href="employee.html"><i class="fas fa-user-clock"></i><span>考勤</span></a>
+        <a href="settings.html"><i class="fas fa-user-circle"></i><span>我的</span></a>
+    </nav>
+    <div class="bottom-nav-spacer" v-if="loginUser?.role === 'EMPLOYEE'"></div>
+</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/js/adminlte.min.js"></script>
+<script>
+const { createApp, ref, computed, onMounted } = Vue;
+
+createApp({
+    setup() {
+        const depts = ref([]);
+        const emps = ref([]);
+        const deptCount = ref(0);
+        const empCount = ref(0);
+        const adminCount = ref(0);
+        const activeCount = ref(0);
+        const notifications = ref([]);
+        const loginUser = ref(null);
+        const newNotifTitle = ref('');
+
+        const unreadCount = computed(() => notifications.value.filter(n => !n.read).length);
+        const displayedNotifications = computed(() => notifications.value.slice(0, 10));
+        const recentDepts = computed(() => depts.value.slice(0, 5));
+        const recentEmps = computed(() => emps.value.slice(0, 5));
+        const recentNotifications = computed(() => notifications.value.slice(0, 8));
+
+        async function checkLogin() {
+            try {
+                const res = await axios.get('/checkLogin');
+                if (res.data.code !== 1) { window.location.href = 'login.html'; }
+                else { loginUser.value = res.data.data; }
+            } catch (_) { window.location.href = 'login.html'; }
+        }
+
+        async function logout() {
+            await axios.post('/logout');
+            window.location.href = 'login.html';
+        }
+
+        async function loadNotifications() {
+            try {
+                const res = await axios.get('/notifications');
+                if (res.data.code === 1) notifications.value = res.data.data || [];
+            } catch (_) {}
+        }
+
+        async function markRead(n) {
+            try { await axios.put('/notifications?id=' + n.id); await loadNotifications(); } catch (_) {}
+        }
+
+        async function markAllRead() {
+            try { await axios.put('/notifications'); await loadNotifications(); } catch (_) {}
+        }
+
+        async function publishNotif(title) {
+            const t = title || newNotifTitle.value.trim();
+            if (!t) return;
+            try {
+                await axios.post('/notifications', null, { params: { title: t } });
+                newNotifTitle.value = '';
+                await loadNotifications();
+            } catch (_) {}
+        }
+
+        async function load() {
+            try {
+                const [dashRes, deptRes, empRes] = await Promise.all([
+                    axios.get('/dashboard'),
+                    axios.get('/depts'),
+                    axios.get('/employees')
+                ]);
+                if (dashRes.data.code === 1) {
+                    const d = dashRes.data.data;
+                    deptCount.value = d.deptCount;
+                    empCount.value = d.empCount;
+                    activeCount.value = d.activeCount;
+                    adminCount.value = d.adminCount;
+                }
+                if (deptRes.data.code === 1) depts.value = deptRes.data.data || [];
+                if (empRes.data.code === 1) emps.value = empRes.data.data || [];
+            } catch (e) { console.error('加载失败', e); }
+        }
+
+        onMounted(() => {
+            checkLogin(); load(); loadNotifications();
+            setTimeout(() => {
+                if (loginUser.value?.role === 'EMPLOYEE') {
+                    document.body.classList.add('employee-app');
+                    document.body.classList.add('sidebar-collapse');
+                }
+            }, 300);
+        });
+
+        return { depts, emps, deptCount, empCount, adminCount, activeCount, notifications, unreadCount,
+                 displayedNotifications, recentDepts, recentEmps, recentNotifications,
+                 loginUser, logout, markRead, markAllRead, newNotifTitle, publishNotif };
+    }
+}).mount('#app');
+</script>
+</body>
+</html>

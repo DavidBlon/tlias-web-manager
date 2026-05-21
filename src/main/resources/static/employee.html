@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>员工管理 - Tlias</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.15.4/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/css/adminlte.min.css">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <style>
+@media (max-width: 767.98px) {
+    .card-header { flex-wrap: wrap; gap: 6px; }
+    .card-tools { width: 100%; }
+    .card-tools .input-group { width: 100% !important; }
+    .content-header h1 { font-size: 1.2rem; }
+    .breadcrumb { display: none; }
+    .table td:last-child, .table th:last-child { min-width: 140px; }
+    .btn { padding: .35rem .6rem; font-size: .85rem; }
+    .modal-dialog { margin: .5rem; }
+}
+@media (max-width: 575.98px) {
+    .table td:nth-child(4), .table th:nth-child(4) { display: none; }
+}
+.notify-dropdown { width: 320px; max-height: 360px; overflow-y: auto; }
+.notify-item { cursor: pointer; font-size: .88rem; border-bottom: 1px solid #f0f0f0; }
+.notify-item:last-child { border-bottom: 0; }
+.notify-item.unread { background: #f0f7ff; font-weight: 500; }
+.notify-item .notify-time { font-size: .75rem; color: #999; }
+.notify-badge { position: absolute; top: 2px; right: 4px; }
+
+/* 员工移动端样式 */
+body.employee-app .main-header { background: #fff; border-bottom: 1px solid #eee; }
+body.employee-app .main-header .nav-link { color: #333; }
+body.employee-app .content-header { display: none; }
+body.employee-app .main-footer { display: none; }
+body.employee-app .content-wrapper { margin-left: 0 !important; }
+body.employee-app .main-sidebar { display: none; }
+body.employee-app .brand-link { display: none; }
+body.employee-app .content { padding: 10px; }
+body.employee-app .status-card { border-radius: 16px; border: none; box-shadow: 0 4px 20px rgba(0,0,0,.08); }
+body.employee-app .status-card .card-body { padding: 24px 20px; }
+body.employee-app .status-badge { font-size: 1.1rem; padding: 8px 16px; border-radius: 20px; }
+body.employee-app .punch-btn { font-size: 1rem; padding: 12px 28px; border-radius: 24px; font-weight: 600; letter-spacing: 1px; }
+body.employee-app .employee-table-card { border-radius: 16px; border: none; box-shadow: 0 2px 12px rgba(0,0,0,.05); }
+body.employee-app .employee-table-card .card-header { background: #fff; border-radius: 16px 16px 0 0 !important; }
+body.employee-app .employee-table-card th { border-top: none; color: #999; font-weight: 500; font-size: .8rem; text-transform: uppercase; }
+body.employee-app .employee-table-card td { font-size: .9rem; }
+
+/* 底部导航栏 */
+.bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; z-index: 1030;
+    background: #fff; border-top: 1px solid #eee; display: flex;
+    padding: 6px 0 env(safe-area-inset-bottom, 8px) 0; }
+.bottom-nav a { flex: 1; text-align: center; color: #999; text-decoration: none;
+    padding: 6px 0; font-size: .75rem; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.bottom-nav a i { font-size: 1.3rem; }
+.bottom-nav a.active { color: #007bff; font-weight: 600; }
+.bottom-nav .nav-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.bottom-nav-spacer { height: 70px; }
+    </style>
+</head>
+<body class="hold-transition sidebar-mini">
+<div id="app">
+<div class="wrapper">
+    <nav class="main-header navbar navbar-expand navbar-white navbar-light">
+        <ul class="navbar-nav">
+            <li class="nav-item">
+                <a class="nav-link" data-widget="pushmenu" href="#"><i class="fas fa-bars"></i></a>
+            </li>
+        </ul>
+        <ul class="navbar-nav ml-auto">
+            <li class="nav-item dropdown">
+                <a class="nav-link" data-toggle="dropdown" href="#" style="position:relative">
+                    <i class="far fa-bell"></i>
+                    <span v-if="unreadCount" class="badge badge-warning notify-badge">{{ unreadCount }}</span>
+                </a>
+                <div class="dropdown-menu dropdown-menu-right notify-dropdown p-0">
+                    <div class="px-3 py-2 d-flex justify-content-between align-items-center border-bottom" style="background:#fafafa">
+                        <strong style="font-size:.92rem">通知</strong>
+                        <button v-if="notifications.length" class="btn btn-xs btn-outline-secondary" @click="markAllRead" style="font-size:.75rem">全部已读</button>
+                    </div>
+                    <div v-if="loginUser?.role === 'ADMIN'" class="px-3 py-2 border-bottom">
+                        <div class="input-group input-group-sm">
+                            <input type="text" class="form-control" v-model="newNotifTitle"
+                                   placeholder="发布通知..." @keyup.enter="publishNotif()">
+                            <div class="input-group-append">
+                                <button class="btn btn-primary" @click="publishNotif()">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div v-if="notifications.length === 0" class="text-center text-muted py-4" style="font-size:.85rem">暂无通知</div>
+                    <div v-for="n in displayedNotifications" :key="n.id"
+                         class="notify-item px-3 py-2"
+                         :class="{ 'unread': !n.read }"
+                         @click="markRead(n)">
+                        <div>{{ n.title }}</div>
+                        <div class="notify-time">{{ n.time }}</div>
+                    </div>
+                    <div v-if="notifications.length > 10" class="text-center py-2 border-top">
+                        <small class="text-muted">显示最近 10 条，共 {{ notifications.length }} 条</small>
+                    </div>
+                </div>
+            </li>
+            <li class="nav-item dropdown">
+                <a class="nav-link" data-toggle="dropdown" href="#" style="cursor:pointer">
+                    <i class="fas fa-user-circle"></i> {{ loginUser?.name || '用户' }}
+                </a>
+                <div class="dropdown-menu dropdown-menu-right">
+                    <div class="dropdown-item-text text-muted" style="font-size:.85rem">
+                        <i class="fas fa-tag mr-1"></i>
+                        <span :class="'badge ' + (loginUser?.role === 'ADMIN' ? 'badge-danger' : 'badge-info')">
+                            {{ loginUser?.role === 'ADMIN' ? '管理员' : '员工' }}
+                        </span>
+                    </div>
+                    <div class="dropdown-divider"></div>
+                    <a class="dropdown-item" href="settings.html">
+                        <i class="fas fa-user-edit mr-1"></i> 修改资料
+                    </a>
+                    <a class="dropdown-item" href="#" @click.prevent="logout">
+                        <i class="fas fa-sign-out-alt mr-1"></i> 退出登录
+                    </a>
+                </div>
+            </li>
+        </ul>
+    </nav>
+
+    <aside class="main-sidebar sidebar-dark-primary elevation-4">
+        <a href="#" class="brand-link">
+            <span class="brand-text font-weight-light" style="margin-left:16px">Tlias</span>
+        </a>
+        <div class="sidebar">
+            <nav class="mt-2">
+                <ul class="nav nav-pills nav-sidebar flex-column" role="menu">
+                    <li class="nav-header">系统管理</li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="home.html">
+                            <i class="nav-icon fas fa-home"></i>
+                            <p>首页</p>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="index.html">
+                            <i class="nav-icon fas fa-sitemap"></i>
+                            <p>部门管理</p>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="employee.html">
+                            <i class="nav-icon fas fa-users"></i>
+                            <p>员工管理</p>
+                        </a>
+                    </li>
+                    <li class="nav-header">其他</li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="settings.html">
+                            <i class="nav-icon fas fa-cog"></i>
+                            <p>系统设置</p>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </aside>
+
+    <div class="content-wrapper">
+        <section class="content-header">
+            <div class="container-fluid">
+                <div class="row mb-2">
+                    <div class="col-sm-6">
+                        <h1>{{ loginUser?.role === 'EMPLOYEE' ? '我的考勤' : '员工管理' }}</h1>
+                    </div>
+                    <div class="col-sm-6">
+                        <ol class="breadcrumb float-sm-right">
+                            <li class="breadcrumb-item"><a href="home.html">首页</a></li>
+                            <li class="breadcrumb-item active">{{ loginUser?.role === 'EMPLOYEE' ? '考勤打卡' : '员工管理' }}</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="content">
+            <div class="container-fluid">
+                <div class="row" v-if="loginUser?.role !== 'ADMIN'">
+                    <div class="col-12">
+                        <div class="card status-card">
+                            <div class="card-body text-center">
+                                <div class="mb-3">
+                                    <i class="fas fa-user-circle" style="font-size:3rem;color:#007bff"></i>
+                                </div>
+                                <h5 style="font-weight:600">{{ loginUser?.name }}</h5>
+                                <div class="mb-3" v-if="loginUser?.deptName" style="color:#888;font-size:.85rem">
+                                    <i class="fas fa-building mr-1"></i> {{ loginUser.deptName }}
+                                </div>
+                                <span :class="'badge status-badge ' + (myStatus === 'ONLINE' ? 'badge-success' : 'badge-secondary')"
+                                      style="display:inline-block">
+                                    <i :class="'fas mr-1 ' + (myStatus === 'ONLINE' ? 'fa-briefcase' : 'fa-home')"></i>
+                                    {{ myStatus === 'ONLINE' ? '上班中' : '已下班' }}
+                                </span>
+                                <div class="mt-3">
+                                    <button class="btn punch-btn"
+                                            :class="myStatus === 'ONLINE' ? 'btn-warning' : 'btn-success'"
+                                            @click="toggleStatus">
+                                        <i :class="'fas mr-1 ' + (myStatus === 'ONLINE' ? 'fa-sign-out-alt' : 'fa-sign-in-alt')"></i>
+                                        {{ myStatus === 'ONLINE' ? '下班打卡' : '上班打卡' }}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card employee-table-card">
+                            <div class="card-header">
+                                <h3 class="card-title">
+                                    <i class="fas fa-users mr-1"></i> 员工列表
+                                </h3>
+                                <div class="card-tools d-flex align-items-center">
+                                    <button class="btn btn-primary btn-sm mr-2" @click="showAddModal"
+                                            v-if="loginUser?.role === 'ADMIN'">
+                                        <i class="fas fa-plus"></i> 新增
+                                    </button>
+                                    <div class="input-group input-group-sm" style="width: 280px;">
+                                        <input type="text" class="form-control float-right"
+                                               placeholder="输入员工ID查询..."
+                                               v-model="searchId"
+                                               @keyup.enter="searchById">
+                                        <div class="input-group-append">
+                                            <button class="btn btn-default" @click="searchById">
+                                                <i class="fas fa-search"></i>
+                                            </button>
+                                            <button class="btn btn-outline-secondary" @click="resetSearch">
+                                                清除
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-body table-responsive p-0">
+                                <table class="table table-hover text-nowrap">
+                                    <thead>
+                                        <tr>
+                                            <th style="width:60px">ID</th>
+                                            <th>用户名</th>
+                                            <th>姓名</th>
+                                            <th style="width:80px">年龄</th>
+                                            <th>部门</th>
+                                            <th style="width:80px">状态</th>
+                                            <th style="width:180px" v-if="loginUser?.role === 'ADMIN'">操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr v-for="e in list" :key="e.id">
+                                            <td><span class="badge badge-primary">{{ e.id }}</span></td>
+                                            <td>{{ e.username }}</td>
+                                            <td>{{ e.name }}</td>
+                                            <td>{{ e.age }}</td>
+                                            <td>{{ e.deptName || '未分配' }}</td>
+                                            <td>
+                                                <span v-if="e.status === 'ONLINE'" class="badge badge-success">活跃</span>
+                                                <span v-else class="badge badge-secondary">下班</span>
+                                            </td>
+                                            <td v-if="loginUser?.role === 'ADMIN'">
+                                                <button class="btn btn-info btn-sm" @click="showEditModal(e)">
+                                                    <i class="fas fa-edit"></i> 修改
+                                                </button>
+                                                <button class="btn btn-danger btn-sm ml-1" @click="deleteEmp(e)">
+                                                    <i class="fas fa-trash"></i> 删除
+                                                </button>
+                                            </td>
+                                            <td v-else class="text-muted" style="font-size:.85rem">仅查看</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                                <div v-if="list.length === 0 && searched"
+                                     class="text-center text-muted py-4" style="grid-column:1/-1">
+                                    未找到ID为「{{ searchId }}」的员工
+                                </div>
+                                <div v-if="list.length === 0 && !searched"
+                                     class="text-center text-muted py-4" style="grid-column:1/-1">
+                                    暂无数据
+                                </div>
+                            </div>
+                            <div class="card-footer clearfix" v-if="list.length">
+                                <span class="text-muted" style="font-size:13px">
+                                    共 {{ list.length }} 条记录
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <footer class="main-footer">
+        <strong>Tlias &copy; 2024</strong> 部门管理系统
+    </footer>
+
+    <!-- 员工底部导航 -->
+    <nav class="bottom-nav" v-if="loginUser?.role === 'EMPLOYEE'">
+        <a href="home.html"><i class="fas fa-home"></i><span>首页</span></a>
+        <a href="employee.html" class="active">
+            <i class="fas fa-user-clock"></i><span>考勤</span>
+            <span class="nav-dot" :style="{ background: myStatus === 'ONLINE' ? '#28a745' : '#ccc' }"></span>
+        </a>
+        <a href="settings.html"><i class="fas fa-user-circle"></i><span>我的</span></a>
+    </nav>
+    <div class="bottom-nav-spacer" v-if="loginUser?.role === 'EMPLOYEE'"></div>
+</div>
+
+<!-- 新增/修改 模态框 -->
+<div class="modal fade" id="empModal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">{{ isEdit ? '修改员工' : '新增员工' }}</h5>
+        <button type="button" class="close" data-dismiss="modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>用户名</label>
+          <input type="text" class="form-control" v-model="form.username" placeholder="请输入用户名">
+        </div>
+        <div class="form-group">
+          <label>密码</label>
+          <input type="password" class="form-control" v-model="form.password" placeholder="请输入密码">
+        </div>
+        <div class="form-group">
+          <label>姓名</label>
+          <input type="text" class="form-control" v-model="form.name" placeholder="请输入姓名">
+        </div>
+        <div class="form-group">
+          <label>年龄</label>
+          <input type="number" class="form-control" v-model="form.age" placeholder="请输入年龄">
+        </div>
+        <div class="form-group">
+          <label>所属部门</label>
+          <select class="form-control" v-model="form.deptId">
+            <option :value="null">未分配</option>
+            <option v-for="d in deptOptions" :key="d.id" :value="d.id">{{ d.name }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-primary" @click="saveEmp">确定</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 删除确认 模态框 -->
+<div class="modal fade" id="deleteModal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">确认删除</h5>
+        <button type="button" class="close" data-dismiss="modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>确定要删除员工「{{ deleteTarget?.name }}」吗？此操作不可撤销。</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-danger" @click="confirmDelete">确定删除</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/js/adminlte.min.js"></script>
+<script>
+const { createApp, ref, reactive, computed, onMounted } = Vue;
+
+createApp({
+    setup() {
+        const all = ref([]);
+        const list = ref([]);
+        const searchId = ref('');
+        const searched = ref(false);
+        const isEdit = ref(false);
+        const form = reactive({ username: '', password: '', name: '', age: '', deptId: null });
+        const editingId = ref(null);
+        const deleteTarget = ref(null);
+        const loginUser = ref(null);
+
+        const notifications = ref([]);
+        const unreadCount = computed(() => notifications.value.filter(n => !n.read).length);
+        const displayedNotifications = computed(() => notifications.value.slice(0, 10));
+        const newNotifTitle = ref('');
+        const myStatus = ref('OFFLINE');
+        const deptOptions = ref([]);
+
+        async function loadDeptOptions() {
+            try {
+                const res = await axios.get('/depts');
+                if (res.data.code === 1) deptOptions.value = res.data.data || [];
+            } catch (_) {}
+        }
+
+        async function toggleStatus() {
+            const newStatus = myStatus.value === 'ONLINE' ? 'OFFLINE' : 'ONLINE';
+            try {
+                const res = await axios.put('/employees/status', null, { params: { status: newStatus } });
+                if (res.data.code === 1) {
+                    myStatus.value = newStatus;
+                    await load();
+                }
+            } catch (_) {}
+        }
+
+        async function loadNotifications() {
+            try {
+                const res = await axios.get('/notifications');
+                if (res.data.code === 1) notifications.value = res.data.data || [];
+            } catch (_) {}
+        }
+
+        async function markRead(n) {
+            try { await axios.put('/notifications?id=' + n.id); await loadNotifications(); } catch (_) {}
+        }
+
+        async function markAllRead() {
+            try { await axios.put('/notifications'); await loadNotifications(); } catch (_) {}
+        }
+
+        async function publishNotif(title) {
+            const t = title || newNotifTitle.value.trim();
+            if (!t) return;
+            try {
+                await axios.post('/notifications', null, { params: { title: t } });
+                newNotifTitle.value = '';
+                await loadNotifications();
+            } catch (_) {}
+        }
+
+        async function checkLogin() {
+            try {
+                const res = await axios.get('/checkLogin');
+                if (res.data.code !== 1) { window.location.href = 'login.html'; }
+                else {
+                    loginUser.value = res.data.data;
+                    if (loginUser.value.role !== 'ADMIN') {
+                        myStatus.value = loginUser.value.status || 'OFFLINE';
+                    }
+                }
+            } catch (_) { window.location.href = 'login.html'; }
+        }
+
+        async function logout() {
+            await axios.post('/logout');
+            window.location.href = 'login.html';
+        }
+
+        async function load() {
+            try {
+                const res = await axios.get('/employees');
+                const result = res.data;
+                if (result.code === 1) {
+                    all.value = result.data || [];
+                    list.value = [...all.value];
+                } else {
+                    all.value = [];
+                    list.value = [];
+                    console.error('请求失败:', result.msg);
+                }
+                searched.value = false;
+                searchId.value = '';
+            } catch (e) {
+                console.error('加载失败', e);
+            }
+        }
+
+        function searchById() {
+            const id = searchId.value.trim();
+            if (!id) return;
+            list.value = all.value.filter(e => String(e.id) === id);
+            searched.value = true;
+        }
+
+        function resetSearch() {
+            list.value = [...all.value];
+            searched.value = false;
+            searchId.value = '';
+        }
+
+        function showAddModal() {
+            isEdit.value = false;
+            editingId.value = null;
+            form.username = '';
+            form.password = '';
+            form.name = '';
+            form.age = '';
+            form.deptId = null;
+            $('#empModal').modal('show');
+        }
+
+        async function showEditModal(e) {
+            isEdit.value = true;
+            editingId.value = e.id;
+            try {
+                const res = await axios.get('/employees', { params: { id: e.id } });
+                if (res.data.code === 1 && res.data.data) {
+                    const emp = res.data.data;
+                    form.username = emp.username;
+                    form.password = emp.password || '';
+                    form.name = emp.name;
+                    form.age = emp.age;
+                    form.deptId = emp.deptId != null ? emp.deptId : null;
+                } else {
+                    form.username = e.username;
+                    form.password = e.password || '';
+                    form.name = e.name;
+                    form.age = e.age;
+                    form.deptId = e.deptId != null ? e.deptId : null;
+                }
+            } catch (_) {
+                form.username = e.username;
+                form.password = e.password || '';
+                form.name = e.name;
+                form.age = e.age;
+                form.deptId = e.deptId != null ? e.deptId : null;
+            }
+            $('#empModal').modal('show');
+        }
+
+        async function saveEmp() {
+            if (!form.username.trim() || !form.name.trim()) {
+                alert('请填写用户名和姓名');
+                return;
+            }
+            try {
+                let res;
+                if (isEdit.value) {
+                    res = await axios.put('/employees?id=' + editingId.value, {
+                        username: form.username,
+                        password: form.password,
+                        name: form.name,
+                        age: form.age ? Number(form.age) : null,
+                        deptId: form.deptId != null ? Number(form.deptId) : null
+                    });
+                } else {
+                    res = await axios.post('/employees', {
+                        username: form.username,
+                        password: form.password,
+                        name: form.name,
+                        age: form.age ? Number(form.age) : null,
+                        deptId: form.deptId != null ? Number(form.deptId) : null
+                    });
+                }
+                const result = res.data;
+                if (result.code === 1) {
+                    $('#empModal').modal('hide');
+                    publishNotif(isEdit.value ? '修改员工：' + form.name : '新增员工：' + form.name);
+                    await load();
+                } else {
+                    alert(result.msg || '操作失败');
+                }
+            } catch (e) {
+                alert('操作失败: ' + (e.response?.data?.msg || e.message));
+            }
+        }
+
+        function deleteEmp(e) {
+            deleteTarget.value = e;
+            $('#deleteModal').modal('show');
+        }
+
+        async function confirmDelete() {
+            const id = deleteTarget.value.id;
+            try {
+                const res = await axios.delete('/employees?id=' + id);
+                const result = res.data;
+                if (result.code === 1) {
+                    $('#deleteModal').modal('hide');
+                    publishNotif('删除员工：' + deleteTarget.value.name);
+                    deleteTarget.value = null;
+                    await load();
+                } else {
+                    alert(result.msg || '删除失败');
+                }
+            } catch (e) {
+                alert('删除失败: ' + (e.response?.data?.msg || e.message));
+            }
+        }
+
+        onMounted(async () => {
+            await checkLogin();
+            await load();
+            loadNotifications();
+            if (loginUser.value?.role === 'ADMIN') loadDeptOptions();
+            if (loginUser.value?.role === 'EMPLOYEE') {
+                document.body.classList.add('employee-app');
+                document.body.classList.add('sidebar-collapse');
+            }
+        });
+
+        return {
+            list, searchId, searched, searchById, resetSearch,
+            showAddModal, showEditModal, deleteEmp, confirmDelete,
+            saveEmp, isEdit, form, deleteTarget, loginUser, logout,
+            notifications, unreadCount, displayedNotifications, markRead, markAllRead,
+            myStatus, toggleStatus, deptOptions, newNotifTitle, publishNotif
+        };
+    }
+}).mount('#app');
+</script>
+</body>
+</html>

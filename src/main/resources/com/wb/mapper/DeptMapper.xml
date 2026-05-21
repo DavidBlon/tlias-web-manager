@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.wb.mapper.DeptMapper">
+
+    <!-- 查询所有 -->
+    <select id="getList" resultType="com.wb.entity.Dept">
+        SELECT * FROM dept
+    </select>
+
+    <!--查单独-->
+    <select id="getById" resultType="com.wb.entity.Dept">
+        SELECT * FROM dept where id = #{id}
+    </select>
+
+    <!-- 插入 -->
+    <insert id="insertDept" parameterType="com.wb.entity.Dept" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO dept (name, update_time)
+        VALUES (#{name}, #{updateTime})
+    </insert>
+
+    <!-- 更新 -->
+    <update id="updateDept" parameterType="com.wb.entity.Dept">
+        UPDATE dept
+        SET name = #{name},
+            update_time = #{updateTime}
+        WHERE id = #{id}
+    </update>
+
+    <!-- 删除 -->
+    <delete id="deleteDeptById" parameterType="java.lang.Integer">
+        DELETE FROM dept
+        WHERE id = #{id}
+    </delete>
+
+    <select id="count" resultType="int">
+        SELECT COUNT(*) FROM dept
+    </select>
+
+</mapper>

@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>部门管理 - Tlias</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.15.4/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/css/adminlte.min.css">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <style>
+@media (max-width: 767.98px) {
+    .card-header { flex-wrap: wrap; gap: 6px; }
+    .card-tools { width: 100%; }
+    .card-tools .input-group { width: 100% !important; }
+    .content-header h1 { font-size: 1.2rem; }
+    .breadcrumb { display: none; }
+    .table td:last-child, .table th:last-child { min-width: 140px; }
+    .btn { padding: .35rem .6rem; font-size: .85rem; }
+    .modal-dialog { margin: .5rem; }
+}
+@media (max-width: 575.98px) {
+    .table td:nth-child(3), .table th:nth-child(3) { display: none; }
+}
+.notify-dropdown { width: 320px; max-height: 360px; overflow-y: auto; }
+.notify-item { cursor: pointer; font-size: .88rem; border-bottom: 1px solid #f0f0f0; }
+.notify-item:last-child { border-bottom: 0; }
+.notify-item.unread { background: #f0f7ff; font-weight: 500; }
+.notify-item .notify-time { font-size: .75rem; color: #999; }
+.notify-badge { position: absolute; top: 2px; right: 4px; }
+
+body.employee-app .content-header { display: none; }
+body.employee-app .main-footer { display: none; }
+body.employee-app .content-wrapper { margin-left: 0 !important; }
+body.employee-app .main-sidebar { display: none; }
+body.employee-app .brand-link { display: none; }
+body.employee-app .content { padding: 10px; }
+
+.bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; z-index: 1030;
+    background: #fff; border-top: 1px solid #eee; display: flex;
+    padding: 6px 0 env(safe-area-inset-bottom, 8px) 0; }
+.bottom-nav a { flex: 1; text-align: center; color: #999; text-decoration: none;
+    padding: 6px 0; font-size: .75rem; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.bottom-nav a i { font-size: 1.3rem; }
+.bottom-nav a.active { color: #007bff; font-weight: 600; }
+.bottom-nav-spacer { height: 70px; }
+    </style>
+</head>
+<body class="hold-transition sidebar-mini">
+<div id="app">
+<div class="wrapper">
+    <!-- 顶部导航 -->
+    <nav class="main-header navbar navbar-expand navbar-white navbar-light">
+        <ul class="navbar-nav">
+            <li class="nav-item">
+                <a class="nav-link" data-widget="pushmenu" href="#"><i class="fas fa-bars"></i></a>
+            </li>
+        </ul>
+        <ul class="navbar-nav ml-auto">
+            <li class="nav-item dropdown">
+                <a class="nav-link" data-toggle="dropdown" href="#" style="position:relative">
+                    <i class="far fa-bell"></i>
+                    <span v-if="unreadCount" class="badge badge-warning notify-badge">{{ unreadCount }}</span>
+                </a>
+                <div class="dropdown-menu dropdown-menu-right notify-dropdown p-0">
+                    <div class="px-3 py-2 d-flex justify-content-between align-items-center border-bottom" style="background:#fafafa">
+                        <strong style="font-size:.92rem">通知</strong>
+                        <button v-if="notifications.length" class="btn btn-xs btn-outline-secondary" @click="markAllRead" style="font-size:.75rem">全部已读</button>
+                    </div>
+                    <div v-if="loginUser?.role === 'ADMIN'" class="px-3 py-2 border-bottom">
+                        <div class="input-group input-group-sm">
+                            <input type="text" class="form-control" v-model="newNotifTitle"
+                                   placeholder="发布通知..." @keyup.enter="publishNotif()">
+                            <div class="input-group-append">
+                                <button class="btn btn-primary" @click="publishNotif()">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div v-if="notifications.length === 0" class="text-center text-muted py-4" style="font-size:.85rem">暂无通知</div>
+                    <div v-for="n in displayedNotifications" :key="n.id"
+                         class="notify-item px-3 py-2"
+                         :class="{ 'unread': !n.read }"
+                         @click="markRead(n)">
+                        <div>{{ n.title }}</div>
+                        <div class="notify-time">{{ n.time }}</div>
+                    </div>
+                    <div v-if="notifications.length > 10" class="text-center py-2 border-top">
+                        <small class="text-muted">显示最近 10 条，共 {{ notifications.length }} 条</small>
+                    </div>
+                </div>
+            </li>
+            <li class="nav-item dropdown">
+                <a class="nav-link" data-toggle="dropdown" href="#" style="cursor:pointer">
+                    <i class="fas fa-user-circle"></i> {{ loginUser?.name || '用户' }}
+                </a>
+                <div class="dropdown-menu dropdown-menu-right">
+                    <div class="dropdown-item-text text-muted" style="font-size:.85rem">
+                        <i class="fas fa-tag mr-1"></i>
+                        <span :class="'badge ' + (loginUser?.role === 'ADMIN' ? 'badge-danger' : 'badge-info')">
+                            {{ loginUser?.role === 'ADMIN' ? '管理员' : '员工' }}
+                        </span>
+                    </div>
+                    <div class="dropdown-divider"></div>
+                    <a class="dropdown-item" href="settings.html">
+                        <i class="fas fa-user-edit mr-1"></i> 修改资料
+                    </a>
+                    <a class="dropdown-item" href="#" @click.prevent="logout">
+                        <i class="fas fa-sign-out-alt mr-1"></i> 退出登录
+                    </a>
+                </div>
+            </li>
+        </ul>
+    </nav>
+
+    <!-- 侧边栏 -->
+    <aside class="main-sidebar sidebar-dark-primary elevation-4">
+        <a href="#" class="brand-link">
+            <span class="brand-text font-weight-light" style="margin-left:16px">Tlias</span>
+        </a>
+        <div class="sidebar">
+            <nav class="mt-2">
+                <ul class="nav nav-pills nav-sidebar flex-column" role="menu">
+                    <li class="nav-header">系统管理</li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="home.html">
+                            <i class="nav-icon fas fa-home"></i>
+                            <p>首页</p>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="index.html">
+                            <i class="nav-icon fas fa-sitemap"></i>
+                            <p>部门管理</p>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="employee.html">
+                            <i class="nav-icon fas fa-users"></i>
+                            <p>员工管理</p>
+                        </a>
+                    </li>
+                    <li class="nav-header">其他</li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="settings.html">
+                            <i class="nav-icon fas fa-cog"></i>
+                            <p>系统设置</p>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </aside>
+
+    <!-- 主内容区 -->
+    <div class="content-wrapper">
+        <!-- 面包屑 -->
+        <section class="content-header">
+            <div class="container-fluid">
+                <div class="row mb-2">
+                    <div class="col-sm-6">
+                        <h1>部门管理</h1>
+                    </div>
+                    <div class="col-sm-6">
+                        <ol class="breadcrumb float-sm-right">
+                            <li class="breadcrumb-item"><a href="#">首页</a></li>
+                            <li class="breadcrumb-item active">部门管理</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 内容 -->
+        <section class="content">
+            <div class="container-fluid">
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">
+                                    <i class="fas fa-sitemap mr-1"></i> 部门列表
+                                </h3>
+                                <div class="card-tools d-flex align-items-center">
+                                    <button class="btn btn-primary btn-sm mr-2" @click="showAddModal"
+                                            v-if="loginUser?.role === 'ADMIN'">
+                                        <i class="fas fa-plus"></i> 新增
+                                    </button>
+                                    <div class="input-group input-group-sm" style="width: 280px;">
+                                        <input type="text" class="form-control float-right"
+                                               placeholder="输入部门ID查询..."
+                                               v-model="searchId"
+                                               @keyup.enter="searchById">
+                                        <div class="input-group-append">
+                                            <button class="btn btn-default" @click="searchById">
+                                                <i class="fas fa-search"></i>
+                                            </button>
+                                            <button class="btn btn-outline-secondary" @click="resetSearch">
+                                                清除
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-body table-responsive p-0">
+                                <table class="table table-hover text-nowrap">
+                                    <thead>
+                                        <tr>
+                                            <th style="width:80px">ID</th>
+                                            <th>部门名称</th>
+                                            <th>更新时间</th>
+                                            <th style="width:180px" v-if="loginUser?.role === 'ADMIN'">操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr v-for="d in list" :key="d.id">
+                                            <td><span class="badge badge-primary">{{ d.id }}</span></td>
+                                            <td>{{ d.name }}</td>
+                                            <td>{{ d.updateTime }}</td>
+                                            <td v-if="loginUser?.role === 'ADMIN'">
+                                                <button class="btn btn-info btn-sm" @click="showEditModal(d)">
+                                                    <i class="fas fa-edit"></i> 修改
+                                                </button>
+                                                <button class="btn btn-danger btn-sm ml-1" @click="deleteDept(d)">
+                                                    <i class="fas fa-trash"></i> 删除
+                                                </button>
+                                                <button class="btn btn-outline-success btn-sm ml-1" @click="showDeptEmployees(d)">
+                                                    <i class="fas fa-users"></i> 员工
+                                                </button>
+                                            </td>
+                                            <td v-else class="text-muted" style="font-size:.85rem">仅查看</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                                <div v-if="list.length === 0 && searched"
+                                     class="text-center text-muted py-4">
+                                    未找到ID为「{{ searchId }}」的部门
+                                </div>
+                                <div v-if="list.length === 0 && !searched"
+                                     class="text-center text-muted py-4">
+                                    暂无数据
+                                </div>
+                            </div>
+                            <div class="card-footer clearfix" v-if="list.length">
+                                <span class="text-muted" style="font-size:13px">
+                                    共 {{ list.length }} 条记录
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- 底部 -->
+    <footer class="main-footer">
+        <strong>Tlias &copy; 2024</strong> 部门管理系统
+    </footer>
+
+    <nav class="bottom-nav" v-if="loginUser?.role === 'EMPLOYEE'">
+        <a href="home.html"><i class="fas fa-home"></i><span>首页</span></a>
+        <a href="employee.html"><i class="fas fa-user-clock"></i><span>考勤</span></a>
+        <a href="settings.html"><i class="fas fa-user-circle"></i><span>我的</span></a>
+    </nav>
+    <div class="bottom-nav-spacer" v-if="loginUser?.role === 'EMPLOYEE'"></div>
+</div>
+
+<!-- 新增/修改 模态框 -->
+<div class="modal fade" id="deptModal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">{{ isEdit ? '修改部门' : '新增部门' }}</h5>
+        <button type="button" class="close" data-dismiss="modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>部门名称</label>
+          <input type="text" class="form-control" v-model="form.name" placeholder="请输入部门名称">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-primary" @click="saveDept">确定</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 删除确认 模态框 -->
+<div class="modal fade" id="deleteModal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">确认删除</h5>
+        <button type="button" class="close" data-dismiss="modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>确定要删除部门「{{ deleteTarget?.name }}」吗？此操作不可撤销。</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-danger" @click="confirmDelete">确定删除</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 部门员工管理 模态框 -->
+<div class="modal fade" id="deptEmpModal" tabindex="-1" role="dialog">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">{{ currentDept?.name }} - 部门员工</h5>
+        <button type="button" class="close" data-dismiss="modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div v-if="deptEmployees.length === 0" class="text-center text-muted py-3">该部门暂无员工</div>
+        <table v-else class="table table-hover table-sm">
+          <thead><tr><th>ID</th><th>用户名</th><th>姓名</th><th>状态</th><th style="width:100px">操作</th></tr></thead>
+          <tbody>
+            <tr v-for="e in deptEmployees" :key="e.id">
+              <td>{{ e.id }}</td>
+              <td>{{ e.username }}</td>
+              <td>{{ e.name }}</td>
+              <td><span :class="'badge ' + (e.status === 'ONLINE' ? 'badge-success' : 'badge-secondary')">{{ e.status === 'ONLINE' ? '上班' : '下班' }}</span></td>
+              <td><button class="btn btn-outline-danger btn-xs" @click="removeEmpFromDept(e)"><i class="fas fa-times"></i> 移除</button></td>
+            </tr>
+          </tbody>
+        </table>
+        <hr>
+        <div class="form-row align-items-end">
+          <div class="col">
+            <label class="small">添加未分配部门的员工</label>
+            <select class="form-control form-control-sm" v-model="selectedEmpId">
+              <option :value="null" disabled>-- 请选择员工 --</option>
+              <option v-for="e in unassignedEmps" :key="e.id" :value="e.id">{{ e.name }} ({{ e.username }})</option>
+            </select>
+          </div>
+          <div class="col-auto">
+            <button class="btn btn-primary btn-sm" @click="addEmpToDept" :disabled="!selectedEmpId">
+              <i class="fas fa-plus"></i> 添加
+            </button>
+          </div>
+        </div>
+        <div v-if="unassignedEmps.length === 0" class="text-muted small mt-2">没有未分配部门的员工</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">关闭</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/js/adminlte.min.js"></script>
+<script>
+const { createApp, ref, reactive, computed, onMounted } = Vue;
+
+createApp({
+    setup() {
+        const all = ref([]);
+        const list = ref([]);
+        const searchId = ref('');
+        const searched = ref(false);
+        const isEdit = ref(false);
+        const form = reactive({ name: '' });
+        const editingId = ref(null);
+        const deleteTarget = ref(null);
+        const loginUser = ref(null);
+
+        const notifications = ref([]);
+        const unreadCount = computed(() => notifications.value.filter(n => !n.read).length);
+        const displayedNotifications = computed(() => notifications.value.slice(0, 10));
+        const newNotifTitle = ref('');
+        const currentDept = ref(null);
+        const deptEmployees = ref([]);
+        const unassignedEmps = ref([]);
+        const selectedEmpId = ref(null);
+
+        async function loadNotifications() {
+            try {
+                const res = await axios.get('/notifications');
+                if (res.data.code === 1) notifications.value = res.data.data || [];
+            } catch (_) {}
+        }
+
+        async function markRead(n) {
+            try { await axios.put('/notifications?id=' + n.id); await loadNotifications(); } catch (_) {}
+        }
+
+        async function markAllRead() {
+            try { await axios.put('/notifications'); await loadNotifications(); } catch (_) {}
+        }
+
+        async function publishNotif(title) {
+            const t = title || newNotifTitle.value.trim();
+            if (!t) return;
+            try {
+                await axios.post('/notifications', null, { params: { title: t } });
+                newNotifTitle.value = '';
+                await loadNotifications();
+            } catch (_) {}
+        }
+
+        async function checkLogin() {
+            try {
+                const res = await axios.get('/checkLogin');
+                if (res.data.code !== 1) { window.location.href = 'login.html'; }
+                else { loginUser.value = res.data.data; }
+            } catch (_) { window.location.href = 'login.html'; }
+        }
+
+        async function showDeptEmployees(d) {
+            currentDept.value = d;
+            selectedEmpId.value = null;
+            try {
+                const [res1, res2] = await Promise.all([
+                    axios.get('/employees', { params: { deptId: d.id } }),
+                    axios.get('/employees', { params: { noDept: '' } })
+                ]);
+                deptEmployees.value = res1.data.code === 1 ? res1.data.data : [];
+                unassignedEmps.value = res2.data.code === 1 ? res2.data.data : [];
+            } catch (_) {}
+            $('#deptEmpModal').modal('show');
+        }
+
+        async function addEmpToDept() {
+            if (!selectedEmpId.value || !currentDept.value) return;
+            try {
+                const res = await axios.put('/employees/dept', null, {
+                    params: { empId: selectedEmpId.value, deptId: currentDept.value.id }
+                });
+                if (res.data.code === 1) {
+                    selectedEmpId.value = null;
+                    showDeptEmployees(currentDept.value);
+                } else {
+                    alert(res.data.msg || '操作失败');
+                }
+            } catch (e) {
+                alert('操作失败: ' + (e.response?.data?.msg || e.message));
+            }
+        }
+
+        async function removeEmpFromDept(e) {
+            try {
+                const res = await axios.put('/employees/dept', null, {
+                    params: { empId: e.id }
+                });
+                if (res.data.code === 1) {
+                    showDeptEmployees(currentDept.value);
+                } else {
+                    alert(res.data.msg || '操作失败');
+                }
+            } catch (err) {
+                alert('操作失败: ' + (err.response?.data?.msg || err.message));
+            }
+        }
+
+        async function logout() {
+            await axios.post('/logout');
+            window.location.href = 'login.html';
+        }
+
+        async function load() {
+            try {
+                const res = await axios.get('/depts');
+                const result = res.data;
+                if (result.code === 1) {
+                    all.value = result.data || [];
+                    list.value = [...all.value];
+                } else {
+                    all.value = [];
+                    list.value = [];
+                    console.error('请求失败:', result.msg);
+                }
+                searched.value = false;
+                searchId.value = '';
+            } catch (e) {
+                console.error('加载失败', e);
+            }
+        }
+
+        function searchById() {
+            const id = searchId.value.trim();
+            if (!id) return;
+            list.value = all.value.filter(d => String(d.id) === id);
+            searched.value = true;
+        }
+
+        function resetSearch() {
+            list.value = [...all.value];
+            searched.value = false;
+            searchId.value = '';
+        }
+
+        function showAddModal() {
+            isEdit.value = false;
+            editingId.value = null;
+            form.name = '';
+            $('#deptModal').modal('show');
+        }
+
+        async function showEditModal(d) {
+            isEdit.value = true;
+            editingId.value = d.id;
+            try {
+                const res = await axios.get('/depts', { params: { id: d.id } });
+                if (res.data.code === 1 && res.data.data) {
+                    form.name = res.data.data.name;
+                } else {
+                    form.name = d.name;
+                }
+            } catch (_) {
+                form.name = d.name;
+            }
+            $('#deptModal').modal('show');
+        }
+
+        async function saveDept() {
+            if (!form.name.trim()) {
+                alert('请输入部门名称');
+                return;
+            }
+            try {
+                let res;
+                if (isEdit.value) {
+                    res = await axios.put('/depts?id=' + editingId.value, { name: form.name });
+                } else {
+                    res = await axios.post('/depts', { name: form.name });
+                }
+                const result = res.data;
+                if (result.code === 1) {
+                    $('#deptModal').modal('hide');
+                    publishNotif(isEdit.value ? '修改部门：' + form.name : '新增部门：' + form.name);
+                    await load();
+                } else {
+                    alert(result.msg || '操作失败');
+                }
+            } catch (e) {
+                alert('操作失败: ' + (e.response?.data?.msg || e.message));
+            }
+        }
+
+        function deleteDept(d) {
+            deleteTarget.value = d;
+            $('#deleteModal').modal('show');
+        }
+
+        async function confirmDelete() {
+            const id = deleteTarget.value.id;
+            try {
+                const res = await axios.delete('/depts?id=' + id);
+                const result = res.data;
+                if (result.code === 1) {
+                    $('#deleteModal').modal('hide');
+                    publishNotif('删除部门：' + deleteTarget.value.name);
+                    deleteTarget.value = null;
+                    await load();
+                } else {
+                    alert(result.msg || '删除失败');
+                }
+            } catch (e) {
+                alert('删除失败: ' + (e.response?.data?.msg || e.message));
+            }
+        }
+
+        onMounted(() => {
+            checkLogin(); load(); loadNotifications();
+            setTimeout(() => {
+                if (loginUser.value?.role === 'EMPLOYEE') {
+                    document.body.classList.add('employee-app');
+                    document.body.classList.add('sidebar-collapse');
+                }
+            }, 300);
+        });
+
+        return {
+            list, searchId, searched, searchById, resetSearch,
+            showAddModal, showEditModal, deleteDept, confirmDelete,
+            saveDept, isEdit, form, deleteTarget, loginUser, logout,
+            notifications, unreadCount, displayedNotifications, markRead, markAllRead,
+            newNotifTitle, publishNotif,
+            currentDept, deptEmployees, unassignedEmps, selectedEmpId,
+            showDeptEmployees, addEmpToDept, removeEmpFromDept
+        };
+    }
+}).mount('#app');
+</script>
+</body>
+</html>

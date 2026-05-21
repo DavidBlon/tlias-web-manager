@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.wb.mapper.EmployeeMapper">
+
+    <select id="getList" resultType="com.wb.entity.Employee">
+        SELECT e.id, e.username, e.password, e.name, e.age, e.dept_id, e.status,
+               d.name AS dept_name
+        FROM `Employee` e
+        LEFT JOIN dept d ON e.dept_id = d.id
+    </select>
+
+    <select id="getById" resultType="com.wb.entity.Employee">
+        SELECT e.id, e.username, e.password, e.name, e.age, e.dept_id, e.status,
+               d.name AS dept_name
+        FROM `Employee` e
+        LEFT JOIN dept d ON e.dept_id = d.id
+        WHERE e.id = #{id}
+    </select>
+
+    <select id="getByUsername" resultType="com.wb.entity.Employee">
+        SELECT e.id, e.username, e.password, e.name, e.age, e.dept_id, e.status,
+               d.name AS dept_name
+        FROM `Employee` e
+        LEFT JOIN dept d ON e.dept_id = d.id
+        WHERE e.username = #{username}
+    </select>
+
+    <insert id="insertEmployee" parameterType="com.wb.entity.Employee" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO `Employee` (username, password, name, age, dept_id, status)
+        VALUES (#{username}, #{password}, #{name}, #{age}, #{deptId}, #{status})
+    </insert>
+
+    <update id="updateEmployee" parameterType="com.wb.entity.Employee">
+        UPDATE `Employee`
+        SET username = #{username},
+            password = #{password},
+            name = #{name},
+            age = #{age},
+            dept_id = #{deptId}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteEmployeeById" parameterType="java.lang.Integer">
+        DELETE FROM `Employee` WHERE id = #{id}
+    </delete>
+
+    <select id="getActiveCount" resultType="int">
+        SELECT COUNT(*) FROM `Employee` WHERE status = 'ONLINE'
+    </select>
+
+    <select id="count" resultType="int">
+        SELECT COUNT(*) FROM `Employee`
+    </select>
+
+    <select id="getByDeptId" resultType="com.wb.entity.Employee">
+        SELECT e.id, e.username, e.password, e.name, e.age, e.dept_id, e.status,
+               d.name AS dept_name
+        FROM `Employee` e
+        LEFT JOIN dept d ON e.dept_id = d.id
+        WHERE e.dept_id = #{deptId}
+    </select>
+
+    <select id="getUnassigned" resultType="com.wb.entity.Employee">
+        SELECT e.id, e.username, e.password, e.name, e.age, e.dept_id, e.status,
+               d.name AS dept_name
+        FROM `Employee` e
+        LEFT JOIN dept d ON e.dept_id = d.id
+        WHERE e.dept_id IS NULL
+    </select>
+
+    <update id="updateStatus">
+        UPDATE `Employee` SET status = #{status} WHERE id = #{id}
+    </update>
+
+    <update id="updateDept">
+        UPDATE `Employee` SET dept_id = #{deptId} WHERE id = #{id}
+    </update>
+
+</mapper>

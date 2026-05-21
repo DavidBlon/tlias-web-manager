@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>登录 - Tlias</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.15.4/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/css/adminlte.min.css">
+</head>
+<body class="hold-transition login-page">
+<div id="app">
+    <div class="login-box">
+        <div class="login-logo">
+            <b>Tlias</b> Manager
+        </div>
+        <div class="card">
+            <div class="card-body login-card-body">
+                <p class="login-box-msg">请登录以继续</p>
+                <div class="alert alert-danger" v-if="msg">{{ msg }}</div>
+                <div class="input-group mb-3">
+                    <input type="text" class="form-control" v-model="username" placeholder="用户名"
+                           @keyup.enter="login" :disabled="loading">
+                    <div class="input-group-append">
+                        <div class="input-group-text"><i class="fas fa-user"></i></div>
+                    </div>
+                </div>
+                <div class="input-group mb-3">
+                    <input type="password" class="form-control" v-model="password" placeholder="密码"
+                           @keyup.enter="login" :disabled="loading">
+                    <div class="input-group-append">
+                        <div class="input-group-text"><i class="fas fa-lock"></i></div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-8">
+                        <a href="register.html" class="text-muted" style="line-height:38px">注册新账号</a>
+                    </div>
+                    <div class="col-4">
+                        <button type="button" class="btn btn-primary btn-block" @click="login" :disabled="loading">
+                            <i class="fas fa-spinner fa-spin" v-if="loading"></i>
+                            <span v-else>登录</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+<script>
+const { createApp, ref } = Vue;
+
+createApp({
+    setup() {
+        const username = ref('');
+        const password = ref('');
+        const msg = ref('');
+        const loading = ref(false);
+
+        async function login() {
+            msg.value = '';
+            if (!username.value.trim() || !password.value.trim()) {
+                msg.value = '请输入用户名和密码';
+                return;
+            }
+            loading.value = true;
+            try {
+                const res = await axios.post('/login', null, {
+                    params: { username: username.value.trim(), password: password.value }
+                });
+                if (res.data.code === 1) {
+                    window.location.href = 'home.html';
+                } else {
+                    msg.value = res.data.msg || '登录失败';
+                }
+            } catch (e) {
+                msg.value = '请求失败: ' + (e.response?.data?.msg || e.message);
+            } finally {
+                loading.value = false;
+            }
+        }
+
+        return { username, password, msg, loading, login };
+    }
+}).mount('#app');
+</script>
+</body>
+</html>

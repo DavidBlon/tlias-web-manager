@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>注册 - Tlias</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.15.4/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/css/adminlte.min.css">
+</head>
+<body class="hold-transition login-page">
+<div id="app">
+    <div class="login-box">
+        <div class="login-logo">
+            <b>Tlias</b> Manager
+        </div>
+        <div class="card">
+            <div class="card-body login-card-body">
+                <p class="login-box-msg">注册新账号</p>
+                <div class="alert alert-danger" v-if="msg">{{ msg }}</div>
+                <div class="input-group mb-3">
+                    <input type="text" class="form-control" v-model="username" placeholder="用户名"
+                           :disabled="loading">
+                    <div class="input-group-append">
+                        <div class="input-group-text"><i class="fas fa-user"></i></div>
+                    </div>
+                </div>
+                <div class="input-group mb-3">
+                    <input type="text" class="form-control" v-model="name" placeholder="姓名"
+                           :disabled="loading">
+                    <div class="input-group-append">
+                        <div class="input-group-text"><i class="fas fa-id-card"></i></div>
+                    </div>
+                </div>
+                <div class="input-group mb-3">
+                    <input type="password" class="form-control" v-model="password" placeholder="密码"
+                           :disabled="loading">
+                    <div class="input-group-append">
+                        <div class="input-group-text"><i class="fas fa-lock"></i></div>
+                    </div>
+                </div>
+                <div class="input-group mb-3">
+                    <input type="password" class="form-control" v-model="confirmPwd" placeholder="确认密码"
+                           :disabled="loading">
+                    <div class="input-group-append">
+                        <div class="input-group-text"><i class="fas fa-check-circle"></i></div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-8">
+                        <a href="login.html" class="text-muted" style="line-height:38px">已有账号？返回登录</a>
+                    </div>
+                    <div class="col-4">
+                        <button type="button" class="btn btn-primary btn-block" @click="register" :disabled="loading">
+                            <i class="fas fa-spinner fa-spin" v-if="loading"></i>
+                            <span v-else>注册</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+<script>
+const { createApp, ref } = Vue;
+
+createApp({
+    setup() {
+        const username = ref('');
+        const name = ref('');
+        const password = ref('');
+        const confirmPwd = ref('');
+        const msg = ref('');
+        const loading = ref(false);
+
+        async function register() {
+            msg.value = '';
+            if (!username.value.trim() || !name.value.trim() || !password.value) {
+                msg.value = '请填写所有字段';
+                return;
+            }
+            if (password.value !== confirmPwd.value) {
+                msg.value = '两次密码不一致';
+                return;
+            }
+            if (password.value.length < 4) {
+                msg.value = '密码至少4位';
+                return;
+            }
+            loading.value = true;
+            try {
+                const res = await axios.post('/register', null, {
+                    params: {
+                        username: username.value.trim(),
+                        password: password.value,
+                        name: name.value.trim()
+                    }
+                });
+                if (res.data.code === 1) {
+                    alert('注册成功，请登录');
+                    window.location.href = 'login.html';
+                } else {
+                    msg.value = res.data.msg || '注册失败';
+                }
+            } catch (e) {
+                msg.value = '请求失败: ' + (e.response?.data?.msg || e.message);
+            } finally {
+                loading.value = false;
+            }
+        }
+
+        return { username, name, password, confirmPwd, msg, loading, register };
+    }
+}).mount('#app');
+</script>
+</body>
+</html>
