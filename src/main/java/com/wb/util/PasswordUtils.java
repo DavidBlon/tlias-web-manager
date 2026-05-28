@@ -11,6 +11,16 @@ public class PasswordUtils {
     }
 
     public static boolean matches(String rawPassword, String encodedPassword) {
-        return ENCODER.matches(rawPassword, encodedPassword);
+        if (encodedPassword == null || rawPassword == null) {
+            return false;
+        }
+        if (isBcrypt(encodedPassword)) {
+            return ENCODER.matches(rawPassword, encodedPassword);
+        }
+        return rawPassword.equals(encodedPassword);
+    }
+
+    public static boolean isBcrypt(String password) {
+        return password != null && (password.startsWith("$2a$") || password.startsWith("$2b$"));
     }
 }

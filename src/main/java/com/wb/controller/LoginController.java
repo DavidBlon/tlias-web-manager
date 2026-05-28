@@ -47,6 +47,10 @@ public class LoginController {
             log.warn("登录失败: 密码错误 username={}", username);
             return Result.error("密码错误");
         }
+        if (!PasswordUtils.isBcrypt(user.getPassword())) {
+            user.setPassword(PasswordUtils.encode(password));
+            sysUserService.doUpdateProfile(user);
+        }
         session.setAttribute("loginUser", user);
         log.info("登录成功: username={}, role={}", username, user.getRole());
         return Result.success();
