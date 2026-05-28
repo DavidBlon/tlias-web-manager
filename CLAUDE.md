@@ -48,7 +48,7 @@ Enterprise department & employee management system with RBAC. Stack: Spring Boot
 
 - **Application:** `src/main/resources/application.properties` — MySQL on `localhost:3306/tables`, Druid datasource, MyBatis camelCase mapping
 - **MyBatis mapper XMLs:** `classpath:com/wb/mapper/*.xml`
-- **Logging:** `logback.xml` — separate dev/prod appenders with rolling file policies
+- **Logging:** `logback.xml` — separate dev/prod appenders with rolling file policies. SQL logging controlled by logback (not `StdOutImpl`); dev profile enables `com.wb.mapper` at DEBUG level for SQL visibility
 - **Actuator:** only `/health` endpoint exposed
 - **Pagination:** PageHelper with MySQL dialect, reasonable defaults
 
