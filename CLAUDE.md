@@ -31,8 +31,9 @@ Enterprise department & employee management system with RBAC. Stack: Spring Boot
 - `controller/` — REST endpoints (LoginController, DeptController, EmployeeController, NotificationController, DashboardController)
 - `service/` — interfaces + impls in `service/` directory
 - `mapper/` — MyBatis interfaces in `mapper/`, XML mappings in `src/main/resources/com/wb/mapper/`
-- `entity/` — POJOs (Dept, Employee, Notification, SysUser) + unified response wrapper `Result`
-- `config/` — `LoginInterceptor` (session auth + role check) + `WebConfig` (interceptor registration) + `GlobalExceptionHandler` (catches `DataIntegrityViolationException` for FK violations)
+- `entity/` — POJOs (Dept, Employee, Notification, SysUser, PageResult) + unified generic response wrapper `Result<T>`
+- `config/` — `LoginInterceptor` (session auth + role check) + `WebConfig` (interceptor registration) + `GlobalExceptionHandler` (catches `DataIntegrityViolationException` + validation errors)
+- `util/` — `IpUtils` (client IP extraction), `PasswordUtils` (BCrypt hashing)
 
 **Frontend** — Vue 3 SPA pages served as static HTML under `src/main/resources/static/`:
 - `login.html` / `register.html` — auth pages
@@ -45,21 +46,29 @@ Enterprise department & employee management system with RBAC. Stack: Spring Boot
 
 ## Key Configurations
 
-- **Application:** `src/main/resources/application.properties` — MySQL connection on `localhost:3306/tables`, Druid datasource, MyBatis camelCase mapping enabled
-- **MyBatis mapper XMLs:** located at `classpath:com/wb/mapper/*.xml` (note: `mybatis.mapper-locations` property is set to `classpath:mapper/*.xml` which is incorrect — the XMLs live under `com/wb/mapper/`)
+- **Application:** `src/main/resources/application.properties` — MySQL on `localhost:3306/tables`, Druid datasource, MyBatis camelCase mapping
+- **MyBatis mapper XMLs:** `classpath:com/wb/mapper/*.xml`
 - **Logging:** `logback.xml` — separate dev/prod appenders with rolling file policies
-- **Git proxy:** configured via `git config http.proxy http://127.0.0.1:7890`
+- **Actuator:** only `/health` endpoint exposed
+- **Pagination:** PageHelper with MySQL dialect, reasonable defaults
 
 ## Database Constraints
 
 - **Foreign key:** `Employee.dept_id` references `dept.id` via constraint `fk_emp_dept` (`ON DELETE RESTRICT`, `ON UPDATE CASCADE`)
-- **SQL migration:** `src/main/resources/sql/add-foreign-key.sql` — run once against MySQL to add the FK
-- **Global exception handler:** `GlobalExceptionHandler` catches `DataIntegrityViolationException` and returns `Result.error("该部门下存在员工，无法删除")` — no application-level check needed before dept deletion
-- **Prerequisite:** Before adding the FK, ensure no orphan `dept_id` values exist in `Employee` table
+- **Global exception handler:** catches `DataIntegrityViolationException` and returns `Result.error("该部门下存在员工，无法删除")`
+- **Validation:** `@Valid` on entity fields, `MethodArgumentNotValidException` handled by `GlobalExceptionHandler`
 
-## Important Notes
+## Security
 
-- Passwords are stored and transmitted in plaintext (no hashing)
-- All frontend dependencies are loaded via CDN (no npm/node build step)
-- The `@ComponentScan` in the main application class includes `"com.wq"` package which is empty/unused
-- Database name in `application.properties` is `tables` (not `tlias`)
+- **Passwords:** BCrypt hashed via `PasswordUtils` (spring-security-crypto)
+- **API responses:** `@JsonIgnore` on password fields in `SysUser` and `Employee`
+- **Logs:** passwords are never logged
+- **Actuator:** restricted to `/health` only
+
+## Code Patterns
+
+- Constructor injection (no `@Autowired` field injection)
+- `Result<T>` generic response wrapper
+- `PageResult<T>` for paginated list responses
+- `IpUtils.getClientIp()` for IP extraction (used by all controllers)
+- Input validation via Jakarta Validation annotations (`@NotBlank`, `@Size`)

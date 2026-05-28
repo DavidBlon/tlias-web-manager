@@ -2,14 +2,16 @@ package com.wb.service;
 
 import com.wb.entity.SysUser;
 import com.wb.mapper.SysUserMapper;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
 public class SysUserServiceImpl implements SysUserService {
 
-    @Autowired
-    private SysUserMapper sysUserMapper;
+    private final SysUserMapper sysUserMapper;
+
+    public SysUserServiceImpl(SysUserMapper sysUserMapper) {
+        this.sysUserMapper = sysUserMapper;
+    }
 
     @Override
     public SysUser doGetByUsername(String username) {

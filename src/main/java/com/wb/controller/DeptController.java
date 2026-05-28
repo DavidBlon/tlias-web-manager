@@ -1,84 +1,74 @@
 package com.wb.controller;
 
+import com.github.pagehelper.PageHelper;
+import com.github.pagehelper.PageInfo;
 import com.wb.entity.Dept;
+import com.wb.entity.PageResult;
 import com.wb.entity.Result;
 import com.wb.entity.SysUser;
 import com.wb.service.DeptService;
+import com.wb.util.IpUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.web.bind.annotation.*;
 
 @Slf4j
 @RestController
 public class DeptController {
 
-    @Autowired
-    @Qualifier("deptServiceImpl")
-    private DeptService DSI;
+    private final DeptService deptService;
+    private final HttpServletRequest request;
 
-    @Autowired
-    private HttpServletRequest request;
-
-    private String getClientIp() {
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("X-Real-IP");
-        }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getRemoteAddr();
-        }
-        // X-Forwarded-For 可能包含多个IP，取第一个
-        if (ip != null && ip.contains(",")) {
-            ip = ip.split(",")[0].trim();
-        }
-        return ip;
+    public DeptController(DeptService deptService, HttpServletRequest request) {
+        this.deptService = deptService;
+        this.request = request;
     }
 
     @GetMapping("/depts")
-    public Result getAll(HttpSession session){
+    public Result<PageResult<Dept>> getAll(@RequestParam(defaultValue = "1") int pageNum,
+                                           @RequestParam(defaultValue = "10") int pageSize,
+                                           HttpSession session) {
         SysUser loginUser = (SysUser) session.getAttribute("loginUser");
-        log.info("操作人: username={}, password={}, clientIp={}", loginUser != null ? loginUser.getUsername() : "anonymous", loginUser != null ? loginUser.getPassword() : "", getClientIp());
-        log.info("查询所有部门");
-        return Result.success(DSI.doList());
+        log.info("操作人: username={}, clientIp={}", loginUser != null ? loginUser.getUsername() : "anonymous", IpUtils.getClientIp(request));
+        PageHelper.startPage(pageNum, pageSize);
+        PageInfo<Dept> pageInfo = new PageInfo<>(deptService.doList());
+        return Result.success(new PageResult<>(pageInfo.getList(), pageInfo.getTotal(), pageNum, pageSize));
     }
 
-    @GetMapping(value = "/depts",params = "id")
-    public Result getById(@RequestParam("id") Integer id, HttpSession session){
+    @GetMapping(value = "/depts", params = "id")
+    public Result<Dept> getById(@RequestParam("id") Integer id, HttpSession session) {
         SysUser loginUser = (SysUser) session.getAttribute("loginUser");
-        log.info("操作人: username={}, password={}, clientIp={}", loginUser != null ? loginUser.getUsername() : "anonymous", loginUser != null ? loginUser.getPassword() : "", getClientIp());
-        log.info("根据ID查询部门: id={}", id);
-        return Result.success(DSI.doGetById(id));
+        log.info("操作人: username={}, clientIp={}", loginUser != null ? loginUser.getUsername() : "anonymous", IpUtils.getClientIp(request));
+        return Result.success(deptService.doGetById(id));
     }
 
     @PostMapping("/depts")
-    public Result add(@RequestBody Dept dept, HttpSession session){
+    public Result<Void> add(@Valid @RequestBody Dept dept, HttpSession session) {
         SysUser loginUser = (SysUser) session.getAttribute("loginUser");
-        log.info("操作人: username={}, password={}, clientIp={}", loginUser != null ? loginUser.getUsername() : "anonymous", loginUser != null ? loginUser.getPassword() : "", getClientIp());
+        log.info("操作人: username={}, clientIp={}", loginUser != null ? loginUser.getUsername() : "anonymous", IpUtils.getClientIp(request));
         log.info("新增部门: name={}", dept.getName());
-        DSI.doInsert(dept);
+        deptService.doInsert(dept);
         return Result.success();
     }
 
     @PutMapping("/depts")
-    public Result update(@RequestParam("id") Integer id, @RequestBody Dept dept, HttpSession session){
+    public Result<Void> update(@RequestParam("id") Integer id, @Valid @RequestBody Dept dept, HttpSession session) {
         SysUser loginUser = (SysUser) session.getAttribute("loginUser");
-        log.info("操作人: username={}, password={}, clientIp={}", loginUser != null ? loginUser.getUsername() : "anonymous", loginUser != null ? loginUser.getPassword() : "", getClientIp());
+        log.info("操作人: username={}, clientIp={}", loginUser != null ? loginUser.getUsername() : "anonymous", IpUtils.getClientIp(request));
         log.info("修改部门: id={}, name={}", id, dept.getName());
         dept.setId(id);
-        DSI.doUpdate(dept);
+        deptService.doUpdate(dept);
         return Result.success();
     }
 
     @DeleteMapping("/depts")
-    public Result delete(@RequestParam("id") Integer id, HttpSession session){
+    public Result<Void> delete(@RequestParam("id") Integer id, HttpSession session) {
         SysUser loginUser = (SysUser) session.getAttribute("loginUser");
-        log.info("操作人: username={}, password={}, clientIp={}", loginUser != null ? loginUser.getUsername() : "anonymous", loginUser != null ? loginUser.getPassword() : "", getClientIp());
+        log.info("操作人: username={}, clientIp={}", loginUser != null ? loginUser.getUsername() : "anonymous", IpUtils.getClientIp(request));
         log.info("删除部门: id={}", id);
-        DSI.doDeleteById(id);
+        deptService.doDeleteById(id);
         return Result.success();
     }
-
 }

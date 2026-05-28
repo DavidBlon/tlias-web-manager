@@ -79,7 +79,7 @@ body.employee-app .content { padding: 10px; }
                          :class="{ 'unread': !n.read }"
                          @click="markRead(n)">
                         <div>{{ n.title }}</div>
-                        <div class="notify-time">{{ n.time }}</div>
+                        <div class="notify-time">{{ n.createTime }}</div>
                     </div>
                     <div v-if="notifications.length > 10" class="text-center py-2 border-top">
                         <small class="text-muted">显示最近 10 条，共 {{ notifications.length }} 条</small>
@@ -283,7 +283,7 @@ body.employee-app .content { padding: 10px; }
                                     <div v-for="n in recentNotifications" :key="n.id" class="d-flex align-items-center mb-2 pb-2" style="border-bottom:1px solid #f4f4f4">
                                         <i class="fas fa-circle mr-2" :style="{ color: n.read ? '#ddd' : '#28a745', fontSize: '8px' }"></i>
                                         <span>{{ n.title }}</span>
-                                        <span class="ml-auto text-muted" style="font-size:.75rem">{{ n.time }}</span>
+                                        <span class="ml-auto text-muted" style="font-size:.75rem">{{ n.createTime }}</span>
                                     </div>
                                 </div>
                             </div>
@@ -383,8 +383,8 @@ createApp({
                     activeCount.value = d.activeCount;
                     adminCount.value = d.adminCount;
                 }
-                if (deptRes.data.code === 1) depts.value = deptRes.data.data || [];
-                if (empRes.data.code === 1) emps.value = empRes.data.data || [];
+                if (deptRes.data.code === 1) depts.value = deptRes.data.data.list || [];
+                if (empRes.data.code === 1) emps.value = empRes.data.data.list || [];
             } catch (e) { console.error('加载失败', e); }
         }
 

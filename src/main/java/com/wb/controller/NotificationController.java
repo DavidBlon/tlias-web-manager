@@ -4,56 +4,43 @@ import com.wb.entity.Notification;
 import com.wb.entity.Result;
 import com.wb.entity.SysUser;
 import com.wb.service.NotificationService;
+import com.wb.util.IpUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @Slf4j
 @RestController
 public class NotificationController {
 
-    @Autowired
-    private NotificationService notificationService;
+    private final NotificationService notificationService;
+    private final HttpServletRequest request;
 
-    @Autowired
-    private HttpServletRequest request;
-
-    private String getClientIp() {
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("X-Real-IP");
-        }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getRemoteAddr();
-        }
-        if (ip != null && ip.contains(",")) {
-            ip = ip.split(",")[0].trim();
-        }
-        return ip;
+    public NotificationController(NotificationService notificationService, HttpServletRequest request) {
+        this.notificationService = notificationService;
+        this.request = request;
     }
 
     @GetMapping("/notifications")
-    public Result getAll(HttpSession session) {
+    public Result<List<Notification>> getAll(HttpSession session) {
         SysUser user = (SysUser) session.getAttribute("loginUser");
         if (user == null) {
-            log.warn("查询通知失败: 未登录");
             return Result.error("未登录");
         }
-        log.info("操作人: username={}, password={}, clientIp={}", user.getUsername(), user.getPassword(), getClientIp());
-        log.info("查询通知列表: userId={}", user.getId());
+        log.info("操作人: username={}, clientIp={}", user.getUsername(), IpUtils.getClientIp(request));
         return Result.success(notificationService.doGetAllByUser(user.getId()));
     }
 
     @PostMapping("/notifications")
-    public Result create(@RequestParam String title, HttpSession session) {
+    public Result<Void> create(@RequestParam String title, HttpSession session) {
         SysUser user = (SysUser) session.getAttribute("loginUser");
         if (user == null) {
-            log.warn("创建通知失败: 未登录");
             return Result.error("未登录");
         }
-        log.info("操作人: username={}, password={}, clientIp={}", user.getUsername(), user.getPassword(), getClientIp());
+        log.info("操作人: username={}, clientIp={}", user.getUsername(), IpUtils.getClientIp(request));
         log.info("创建通知: title={}, createdBy={}", title, user.getId());
         Notification n = new Notification();
         n.setTitle(title);
@@ -63,14 +50,13 @@ public class NotificationController {
     }
 
     @PutMapping("/notifications")
-    public Result markRead(@RequestParam(required = false) Integer id,
-                           HttpSession session) {
+    public Result<Void> markRead(@RequestParam(required = false) Integer id,
+                                 HttpSession session) {
         SysUser user = (SysUser) session.getAttribute("loginUser");
         if (user == null) {
-            log.warn("标记通知失败: 未登录");
             return Result.error("未登录");
         }
-        log.info("操作人: username={}, password={}, clientIp={}", user.getUsername(), user.getPassword(), getClientIp());
+        log.info("操作人: username={}, clientIp={}", user.getUsername(), IpUtils.getClientIp(request));
         if (id != null) {
             log.info("标记通知已读: notificationId={}, userId={}", id, user.getId());
             notificationService.doMarkRead(id, user.getId());

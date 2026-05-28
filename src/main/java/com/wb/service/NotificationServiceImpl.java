@@ -2,7 +2,6 @@ package com.wb.service;
 
 import com.wb.entity.Notification;
 import com.wb.mapper.NotificationMapper;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -11,8 +10,11 @@ import java.util.List;
 @Service
 public class NotificationServiceImpl implements NotificationService {
 
-    @Autowired
-    private NotificationMapper notificationMapper;
+    private final NotificationMapper notificationMapper;
+
+    public NotificationServiceImpl(NotificationMapper notificationMapper) {
+        this.notificationMapper = notificationMapper;
+    }
 
     @Override
     public List<Notification> doGetAllByUser(Integer userId) {

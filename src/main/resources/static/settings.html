@@ -74,7 +74,7 @@ body.employee-app .content { padding: 10px; }
                          :class="{ 'unread': !n.read }"
                          @click="markRead(n)">
                         <div>{{ n.title }}</div>
-                        <div class="notify-time">{{ n.time }}</div>
+                        <div class="notify-time">{{ n.createTime }}</div>
                     </div>
                     <div v-if="notifications.length > 10" class="text-center py-2 border-top">
                         <small class="text-muted">显示最近 10 条，共 {{ notifications.length }} 条</small>

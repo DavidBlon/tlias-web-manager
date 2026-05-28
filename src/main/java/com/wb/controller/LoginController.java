@@ -1,14 +1,15 @@
 package com.wb.controller;
 
+import com.wb.entity.Employee;
 import com.wb.entity.Result;
 import com.wb.entity.SysUser;
-import com.wb.entity.Employee;
 import com.wb.service.SysUserService;
 import com.wb.service.EmployeeService;
+import com.wb.util.IpUtils;
+import com.wb.util.PasswordUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -22,40 +23,27 @@ import java.util.Map;
 @RestController
 public class LoginController {
 
-    @Autowired
-    private SysUserService sysUserService;
+    private final SysUserService sysUserService;
+    private final EmployeeService employeeService;
+    private final HttpServletRequest request;
 
-    @Autowired
-    private EmployeeService employeeService;
-
-    @Autowired
-    private HttpServletRequest request;
-
-    private String getClientIp() {
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("X-Real-IP");
-        }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getRemoteAddr();
-        }
-        if (ip != null && ip.contains(",")) {
-            ip = ip.split(",")[0].trim();
-        }
-        return ip;
+    public LoginController(SysUserService sysUserService, EmployeeService employeeService,
+                           HttpServletRequest request) {
+        this.sysUserService = sysUserService;
+        this.employeeService = employeeService;
+        this.request = request;
     }
 
     @PostMapping("/login")
-    public Result login(@RequestParam String username, @RequestParam String password,
-                        HttpSession session) {
-        log.info("操作人: username={}, password={}, clientIp={}", username, password, getClientIp());
-        log.info("用户登录: username={}", username);
+    public Result<Void> login(@RequestParam String username, @RequestParam String password,
+                              HttpSession session) {
+        log.info("用户登录: username={}, clientIp={}", username, IpUtils.getClientIp(request));
         SysUser user = sysUserService.doGetByUsername(username);
         if (user == null) {
             log.warn("登录失败: 用户名不存在 username={}", username);
             return Result.error("用户名不存在");
         }
-        if (!user.getPassword().equals(password)) {
+        if (!PasswordUtils.matches(password, user.getPassword())) {
             log.warn("登录失败: 密码错误 username={}", username);
             return Result.error("密码错误");
         }
@@ -65,25 +53,21 @@ public class LoginController {
     }
 
     @PostMapping("/logout")
-    public Result logout(HttpSession session) {
+    public Result<Void> logout(HttpSession session) {
         SysUser user = (SysUser) session.getAttribute("loginUser");
         String username = user != null ? user.getUsername() : "unknown";
-        String password = user != null ? user.getPassword() : "";
-        log.info("操作人: username={}, password={}, clientIp={}", username, password, getClientIp());
+        log.info("用户登出: username={}, clientIp={}", username, IpUtils.getClientIp(request));
         session.invalidate();
-        log.info("用户登出: username={}", username);
         return Result.success();
     }
 
     @GetMapping("/checkLogin")
-    public Result checkLogin(HttpSession session) {
+    public Result<Map<String, Object>> checkLogin(HttpSession session) {
         SysUser user = (SysUser) session.getAttribute("loginUser");
         if (user == null) {
-            log.warn("检查登录: 未登录");
             return Result.error("未登录");
         }
-        log.info("操作人: username={}, password={}, clientIp={}", user.getUsername(), user.getPassword(), getClientIp());
-        log.info("检查登录状态: username={}, role={}", user.getUsername(), user.getRole());
+        log.info("检查登录状态: username={}, clientIp={}", user.getUsername(), IpUtils.getClientIp(request));
         Map<String, Object> data = new HashMap<>();
         data.put("id", user.getId());
         data.put("username", user.getUsername());
@@ -102,17 +86,15 @@ public class LoginController {
     }
 
     @PostMapping("/register")
-    public Result register(@RequestParam String username, @RequestParam String password,
-                           @RequestParam String name) {
-        log.info("操作人: username={}, password={}, clientIp={}", username, password, getClientIp());
-        log.info("用户注册: username={}, name={}", username, name);
+    public Result<Void> register(@RequestParam String username, @RequestParam String password,
+                                 @RequestParam String name) {
+        log.info("用户注册: username={}, name={}, clientIp={}", username, name, IpUtils.getClientIp(request));
         if (sysUserService.doGetByUsername(username) != null) {
-            log.warn("注册失败: 用户名已存在 username={}", username);
             return Result.error("用户名已存在");
         }
         SysUser user = new SysUser();
         user.setUsername(username);
-        user.setPassword(password);
+        user.setPassword(PasswordUtils.encode(password));
         user.setName(name);
         user.setRole("EMPLOYEE");
         sysUserService.doRegister(user);
@@ -121,29 +103,25 @@ public class LoginController {
         if (emp == null) {
             emp = new Employee();
             emp.setUsername(username);
-            emp.setPassword(password);
+            emp.setPassword(PasswordUtils.encode(password));
             emp.setName(name);
             emp.setStatus("OFFLINE");
             employeeService.doInsert(emp);
         }
-        log.info("注册成功: username={}", username);
         return Result.success();
     }
 
     @GetMapping("/profile")
-    public Result getProfile(HttpSession session) {
+    public Result<Map<String, Object>> getProfile(HttpSession session) {
         SysUser loginUser = (SysUser) session.getAttribute("loginUser");
         if (loginUser == null) {
-            log.warn("获取个人信息失败: 未登录");
             return Result.error("未登录");
         }
-        log.info("操作人: username={}, password={}, clientIp={}", loginUser.getUsername(), loginUser.getPassword(), getClientIp());
         SysUser user = sysUserService.doGetById(loginUser.getId());
         if (user == null) {
-            log.warn("获取个人信息失败: 用户不存在 id={}", loginUser.getId());
             return Result.error("用户不存在");
         }
-        log.info("获取个人信息: username={}", user.getUsername());
+        log.info("获取个人信息: username={}, clientIp={}", user.getUsername(), IpUtils.getClientIp(request));
         Map<String, Object> data = new HashMap<>();
         data.put("id", user.getId());
         data.put("username", user.getUsername());
@@ -153,22 +131,19 @@ public class LoginController {
     }
 
     @PutMapping("/profile")
-    public Result updateProfile(@RequestParam String username, @RequestParam String password,
-                                @RequestParam String name, HttpSession session) {
+    public Result<Void> updateProfile(@RequestParam String username, @RequestParam String password,
+                                      @RequestParam String name, HttpSession session) {
         SysUser loginUser = (SysUser) session.getAttribute("loginUser");
         if (loginUser == null) {
-            log.warn("更新个人信息失败: 未登录");
             return Result.error("未登录");
         }
-        log.info("操作人: username={}, password={}, clientIp={}", loginUser.getUsername(), loginUser.getPassword(), getClientIp());
+        log.info("更新个人信息: id={}, username={}, clientIp={}", loginUser.getId(), username, IpUtils.getClientIp(request));
         SysUser exist = sysUserService.doGetByUsername(username);
         if (exist != null && !exist.getId().equals(loginUser.getId())) {
-            log.warn("更新个人信息失败: 用户名已被占用 username={}", username);
             return Result.error("用户名已被占用");
         }
-        log.info("更新个人信息: id={}, username={}, name={}", loginUser.getId(), username, name);
         loginUser.setUsername(username);
-        loginUser.setPassword(password);
+        loginUser.setPassword(PasswordUtils.encode(password));
         loginUser.setName(name);
         sysUserService.doUpdateProfile(loginUser);
         session.setAttribute("loginUser", loginUser);

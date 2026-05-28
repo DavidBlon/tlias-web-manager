@@ -4,7 +4,7 @@ import com.wb.entity.Employee;
 import com.wb.entity.SysUser;
 import com.wb.mapper.EmployeeMapper;
 import com.wb.mapper.SysUserMapper;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.wb.util.PasswordUtils;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -12,11 +12,13 @@ import java.util.List;
 @Service
 public class EmployeeServiceImpl implements EmployeeService {
 
-    @Autowired
-    private EmployeeMapper employeeMapper;
+    private final EmployeeMapper employeeMapper;
+    private final SysUserMapper sysUserMapper;
 
-    @Autowired
-    private SysUserMapper sysUserMapper;
+    public EmployeeServiceImpl(EmployeeMapper employeeMapper, SysUserMapper sysUserMapper) {
+        this.employeeMapper = employeeMapper;
+        this.sysUserMapper = sysUserMapper;
+    }
 
     @Override
     public List<Employee> doList() {
@@ -39,7 +41,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         if (sysUserMapper.getByUsername(employee.getUsername()) == null) {
             SysUser user = new SysUser();
             user.setUsername(employee.getUsername());
-            user.setPassword(employee.getPassword() != null ? employee.getPassword() : "123456");
+            user.setPassword(PasswordUtils.encode(employee.getPassword() != null ? employee.getPassword() : "123456"));
             user.setName(employee.getName());
             user.setRole("EMPLOYEE");
             sysUserMapper.insertUser(user);

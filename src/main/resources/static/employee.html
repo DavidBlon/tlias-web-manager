@@ -96,7 +96,7 @@ body.employee-app .employee-table-card td { font-size: .9rem; }
                          :class="{ 'unread': !n.read }"
                          @click="markRead(n)">
                         <div>{{ n.title }}</div>
-                        <div class="notify-time">{{ n.time }}</div>
+                        <div class="notify-time">{{ n.createTime }}</div>
                     </div>
                     <div v-if="notifications.length > 10" class="text-center py-2 border-top">
                         <small class="text-muted">显示最近 10 条，共 {{ notifications.length }} 条</small>
@@ -284,10 +284,26 @@ body.employee-app .employee-table-card td { font-size: .9rem; }
                                     暂无数据
                                 </div>
                             </div>
-                            <div class="card-footer clearfix" v-if="list.length">
-                                <span class="text-muted" style="font-size:13px">
-                                    共 {{ list.length }} 条记录
-                                </span>
+                            <div class="card-footer clearfix" v-if="total > 0">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="text-muted" style="font-size:13px">
+                                        共 {{ total }} 条记录，第 {{ currentPage }}/{{ Math.ceil(total / pageSize) }} 页
+                                    </span>
+                                    <nav v-if="Math.ceil(total / pageSize) > 1">
+                                        <ul class="pagination pagination-sm mb-0">
+                                            <li class="page-item" :class="{ disabled: currentPage <= 1 }">
+                                                <a class="page-link" href="#" @click.prevent="goToPage(currentPage - 1)">上一页</a>
+                                            </li>
+                                            <li v-for="p in Math.ceil(total / pageSize)" :key="p"
+                                                class="page-item" :class="{ active: p === currentPage }">
+                                                <a class="page-link" href="#" @click.prevent="goToPage(p)">{{ p }}</a>
+                                            </li>
+                                            <li class="page-item" :class="{ disabled: currentPage >= Math.ceil(total / pageSize) }">
+                                                <a class="page-link" href="#" @click.prevent="goToPage(currentPage + 1)">下一页</a>
+                                            </li>
+                                        </ul>
+                                    </nav>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -391,6 +407,9 @@ createApp({
         const editingId = ref(null);
         const deleteTarget = ref(null);
         const loginUser = ref(null);
+        const currentPage = ref(1);
+        const pageSize = ref(10);
+        const total = ref(0);
 
         const notifications = ref([]);
         const unreadCount = computed(() => notifications.value.filter(n => !n.read).length);
@@ -401,8 +420,8 @@ createApp({
 
         async function loadDeptOptions() {
             try {
-                const res = await axios.get('/depts');
-                if (res.data.code === 1) deptOptions.value = res.data.data || [];
+                const res = await axios.get('/depts', { params: { pageNum: 1, pageSize: 100 } });
+                if (res.data.code === 1) deptOptions.value = res.data.data.list || [];
             } catch (_) {}
         }
 
@@ -460,16 +479,20 @@ createApp({
             window.location.href = 'login.html';
         }
 
-        async function load() {
+        async function load(page) {
+            const p = page || 1;
             try {
-                const res = await axios.get('/employees');
+                const res = await axios.get('/employees', { params: { pageNum: p, pageSize: pageSize.value } });
                 const result = res.data;
                 if (result.code === 1) {
-                    all.value = result.data || [];
+                    all.value = result.data.list || [];
                     list.value = [...all.value];
+                    total.value = result.data.total || 0;
+                    currentPage.value = result.data.pageNum || p;
                 } else {
                     all.value = [];
                     list.value = [];
+                    total.value = 0;
                     console.error('请求失败:', result.msg);
                 }
                 searched.value = false;
@@ -477,6 +500,10 @@ createApp({
             } catch (e) {
                 console.error('加载失败', e);
             }
+        }
+
+        function goToPage(p) {
+            load(p);
         }
 
         function searchById() {
@@ -594,7 +621,7 @@ createApp({
 
         onMounted(async () => {
             await checkLogin();
-            await load();
+            await load(1);
             loadNotifications();
             if (loginUser.value?.role === 'ADMIN') loadDeptOptions();
             if (loginUser.value?.role === 'EMPLOYEE') {
@@ -608,7 +635,8 @@ createApp({
             showAddModal, showEditModal, deleteEmp, confirmDelete,
             saveEmp, isEdit, form, deleteTarget, loginUser, logout,
             notifications, unreadCount, displayedNotifications, markRead, markAllRead,
-            myStatus, toggleStatus, deptOptions, newNotifTitle, publishNotif
+            myStatus, toggleStatus, deptOptions, newNotifTitle, publishNotif,
+            currentPage, pageSize, total, goToPage
         };
     }
 }).mount('#app');

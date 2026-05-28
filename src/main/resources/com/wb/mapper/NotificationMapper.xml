@@ -7,7 +7,7 @@
 
     <select id="getAllWithReadStatus" resultType="com.wb.entity.Notification">
         SELECT n.id, n.title,
-               DATE_FORMAT(n.create_time, '%Y-%m-%d %H:%i:%s') AS time,
+               n.create_time AS createTime,
                n.created_by AS createdBy,
                CASE WHEN nr.id IS NOT NULL THEN TRUE ELSE FALSE END AS `read`
         FROM notification n
