@@ -55,7 +55,8 @@
             <appender-ref ref="FILE_INFO"/>
             <appender-ref ref="FILE_ERROR"/>
         </root>
-        <logger name="com.tlias" level="DEBUG"/>
+        <logger name="com.wb" level="DEBUG"/>
+        <logger name="com.wb.mapper" level="DEBUG"/>
     </springProfile>
 
     <!-- 生产环境：控制台只输出WARN及以上，文件记录INFO及以上 -->
@@ -65,7 +66,7 @@
             <appender-ref ref="FILE_INFO"/>
             <appender-ref ref="FILE_ERROR"/>
         </root>
-        <logger name="com.tlias" level="INFO"/>
+        <logger name="com.wb" level="INFO"/>
         <!-- 屏蔽框架的DEBUG日志 -->
         <logger name="org.springframework" level="WARN"/>
         <logger name="org.mybatis" level="WARN"/>
